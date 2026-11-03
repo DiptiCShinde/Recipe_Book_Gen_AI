@@ -234,3 +234,20 @@ main > section:first-of-type input {
   color: #24352b;
   font: inherit;
 }
+
+main > section:first-of-type select {
+  display: block;
+  width: min(100%, 480px);
+  margin-top: 10px;
+  padding: 14px 16px;
+  border: 1px solid #d9ddd2;
+  border-radius: 8px;
+  background: white;
+  color: #24352b;
+  font: inherit;
+}
+
+main > section:first-of-type select:focus {
+  outline: 3px solid #dbe8dc;
+  border-color: #37634c;
+}

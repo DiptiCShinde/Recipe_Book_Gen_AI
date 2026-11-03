@@ -8,6 +8,8 @@ function App() {
   const [apiMessage, setApiMessage] = useState('Checking backend...')
   const [recipe, setRecipe] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [dietaryPreference, setDietaryPreference] = useState('')
+  const [cuisineStyle, setCuisineStyle] = useState('any')
 
   useEffect(() => {
     fetch('http://127.0.0.1:8000/api/health')
@@ -16,7 +18,7 @@ function App() {
       .catch(() => setApiMessage('Could not connect to the backend'))
   }, [])
 
-    async function handleExplore() {
+  async function handleExplore() {
     const ingredientList = ingredients
       .split(',')
       .map((ingredient) => ingredient.trim())
@@ -31,6 +33,7 @@ function App() {
 
     setMessage('')
     setIngredientItems(ingredientList)
+    setRecipe(null)
     setIsLoading(true)
 
     try {
@@ -39,25 +42,34 @@ function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ingredients: ingredientList }),
+        body: JSON.stringify({
+          ingredients: ingredientList,
+          dietary_preference: dietaryPreference || 'none',
+          cuisine_style: cuisineStyle,
+        }),
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        throw new Error('Recipe request failed')
+        throw new Error(
+          data.detail || 'Recipe generation failed. Please try again.',
+        )
       }
 
-      const data = await response.json()
       setRecipe(data)
-    } catch {
-      setMessage('Could not connect to the backend. Check that it is running.')
+    } catch (error) {
+      const errorMessage =
+        error instanceof TypeError
+          ? 'Could not connect to the backend. Check that it is running.'
+          : error.message
+
+      setMessage(errorMessage)
       setRecipe(null)
     } finally {
       setIsLoading(false)
     }
   }
-
-
-
 
   return (
     <div className="page">
@@ -88,10 +100,35 @@ function App() {
             onChange={(event) => setIngredients(event.target.value)}
           />
 
-          <button type="button" onClick={handleExplore}
-          disabled={isLoading}>
+          <label htmlFor="dietary-preference">Dietary preference</label>
+          <select
+            id="dietary-preference"
+            value={dietaryPreference}
+            onChange={(event) => setDietaryPreference(event.target.value)}
+          >
+            <option value="">No preference</option>
+            <option value="Vegetarian">Vegetarian</option>
+            <option value="Non-Vegetarian">Non-Vegetarian</option>
+            <option value="Vegan">Vegan</option>
+          </select>
+          <label htmlFor="cuisine-style">Cuisine style</label>
+          <select
+            id="cuisine-style"
+            value={cuisineStyle}
+            onChange={(event) => setCuisineStyle(event.target.value)}
+          >
+            <option value="any">Any style</option>
+            <option value="Indian">Indian</option>
+            <option value="Italian">Italian</option>
+            <option value="Mexican">Mexican</option>
+          </select>
+
+          <button
+            type="button"
+            onClick={handleExplore}
+            disabled={isLoading}
+          >
             {isLoading ? 'Finding a recipe...' : 'Explore recipe ideas'}
-            
           </button>
 
           {message && <p role="status">{message}</p>}
@@ -106,7 +143,7 @@ function App() {
 
               {recipe && (
                 <article className="recipe-card">
-                  <p className="recipe-card-label">SAMPLE RECIPE IDEA</p>
+                  <p className="recipe-card-label">AI GENERATED RECIPE</p>
                   <h2>{recipe.name}</h2>
 
                   <p>
