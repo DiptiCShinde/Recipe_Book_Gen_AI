@@ -1,0 +1,16 @@
+# Python
+backend/.venv/
+backend/__pycache__/
+*.py[cod]
+
+# Frontend packages and build files
+frontend/node_modules/
+frontend/dist/
+
+# API keys and local environment files
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
