@@ -88,4 +88,3 @@ Returns a simple readiness response:
 ## Next steps
 
 A natural next milestone is to add an ingredient input form and connect it to a backend recipe-generation endpoint. Any future AI provider key should be kept on the backend and supplied through an environment variable; it should never be placed in frontend code.
-
