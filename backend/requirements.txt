@@ -2,3 +2,5 @@ fastapi
 uvicorn[standard]
 groq
 python-dotenv
+pwdlib[argon2]
+pyjwt
