@@ -10,6 +10,16 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [dietaryPreference, setDietaryPreference] = useState('')
   const [cuisineStyle, setCuisineStyle] = useState('any')
+  const [authToken, setAuthToken] = useState(
+    () => sessionStorage.getItem('recipegen_token') || '',
+  )
+  const [userName, setUserName] = useState(
+    () => sessionStorage.getItem('recipegen_display_name') || '',
+  )
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loginMessage, setLoginMessage] = useState('')
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
 
   useEffect(() => {
     fetch('http://127.0.0.1:8000/api/health')
@@ -17,6 +27,48 @@ function App() {
       .then((data) => setApiMessage(data.message))
       .catch(() => setApiMessage('Could not connect to the backend'))
   }, [])
+
+  async function handleLogin(event) {
+    event.preventDefault()
+    setLoginMessage('')
+    setIsLoggingIn(true)
+
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Sign-in failed. Please try again.')
+      }
+
+      sessionStorage.setItem('recipegen_token', data.access_token)
+      sessionStorage.setItem('recipegen_display_name', data.display_name)
+      setAuthToken(data.access_token)
+      setUserName(data.display_name)
+      setPassword('')
+    } catch (error) {
+      setLoginMessage(error.message)
+    } finally {
+      setIsLoggingIn(false)
+    }
+  }
+
+  function handleLogout() {
+    sessionStorage.removeItem('recipegen_token')
+    sessionStorage.removeItem('recipegen_display_name')
+    setAuthToken('')
+    setUserName('')
+    setEmail('')
+    setPassword('')
+    setLoginMessage('')
+  }
 
   async function handleExplore() {
     const ingredientList = ingredients
@@ -57,7 +109,44 @@ function App() {
         )
       }
 
+      // Show the recipe as soon as generation succeeds.
       setRecipe(data)
+
+      // If signed in, also save the recipe to this user's history.
+      if (authToken) {
+        try {
+          const saveResponse = await fetch(
+            'http://127.0.0.1:8000/api/users/me/recipes',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${authToken}`,
+              },
+              body: JSON.stringify({
+                input_ingredients: ingredientList,
+                dietary_preference: dietaryPreference || 'none',
+                cuisine_style: cuisineStyle,
+                recipe: data,
+              }),
+            },
+          )
+
+          if (!saveResponse.ok) {
+            setMessage(
+              'Recipe generated, but it could not be saved to your profile.',
+            )
+          } else {
+            setMessage('Recipe saved to your profile.')
+          }
+        } catch {
+          setMessage(
+            'Recipe generated, but it could not be saved to your profile.',
+          )
+        }
+      } else {
+        setMessage('Recipe generated. Sign in to save it to your profile.')
+      }
     } catch (error) {
       const errorMessage =
         error instanceof TypeError
@@ -81,6 +170,45 @@ function App() {
       </header>
 
       <main>
+        {authToken ? (
+          <div className="account-panel">
+            <p>Signed in as {userName}</p>
+            <button type="button" onClick={handleLogout}>
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <form className="account-panel" onSubmit={handleLogin}>
+            <h2>Sign in to your recipe profile</h2>
+
+            <label htmlFor="login-email">Email</label>
+            <input
+              id="login-email"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+
+            <label htmlFor="login-password">Password</label>
+            <input
+              id="login-password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+
+            <button type="submit" disabled={isLoggingIn}>
+              {isLoggingIn ? 'Signing in…' : 'Sign in'}
+            </button>
+
+            {loginMessage && <p role="status">{loginMessage}</p>}
+          </form>
+        )}
+
         <p className="api-status">Backend: {apiMessage}</p>
 
         <section>
@@ -111,6 +239,7 @@ function App() {
             <option value="Non-Vegetarian">Non-Vegetarian</option>
             <option value="Vegan">Vegan</option>
           </select>
+
           <label htmlFor="cuisine-style">Cuisine style</label>
           <select
             id="cuisine-style"
