@@ -227,6 +227,9 @@ function App() {
             <button type="button" onClick={handleLogout}>
               Sign out
             </button>
+            <button type="button" onClick={handleShowRecipes}>
+              {showSavedRecipes ? 'Hide my recipes' : 'My recipes'}
+            </button>
           </div>
         ) : (
           <form className="account-panel" onSubmit={handleLogin}>
@@ -260,9 +263,48 @@ function App() {
           </form>
         )}
 
-        <p className="api-status">Backend: {apiMessage}</p>
+        {authToken && showSavedRecipes && (
+  <section className="saved-recipes">
+    <h2>My saved recipes</h2>
+    <button
+      type="button"
+      onClick={() => setShowSavedRecipes(false)}
+    >
+      Back to recipe generator
+    </button>
 
-        <section>
+    {isLoadingRecipes ? (
+      <p>Loading your recipes...</p>
+    ) : historyMessage ? (
+      <p role="status">{historyMessage}</p>
+    ) : (
+      savedRecipes.map((savedRecipe) => (
+        <article className="recipe-card" key={savedRecipe.id}>
+          <p className="recipe-card-label">SAVED RECIPE</p>
+          <h3>{savedRecipe.name}</h3>
+
+          <p>
+            <strong>Ingredients:</strong>{' '}
+            {savedRecipe.recipe.ingredients.join(', ')}
+          </p>
+          <p>
+            <strong>Time:</strong> {savedRecipe.recipe.prep_time_minutes} minutes
+          </p>
+
+          <h4>How to make it</h4>
+          <ol>
+            {savedRecipe.recipe.instructions.map((step, index) => (
+              <li key={index}>{step}</li>
+            ))}
+          </ol>
+        </article>
+      ))
+    )}
+  </section>
+)}
+        <p className="api-status" hidden={showSavedRecipes}>Backend: {apiMessage}</p>
+
+        <section className="hero-section" hidden={showSavedRecipes}>
           <p>A little inspiration for your kitchen</p>
           <h1>Good food starts with what you have.</h1>
           <p>
@@ -346,7 +388,7 @@ function App() {
           )}
         </section>
 
-        <section id="how-it-works">
+        <section id="how-it-works" hidden={showSavedRecipes}>
           <h2>From ingredients to inspiration</h2>
           <p>Start with what you have. We’ll help you imagine the rest.</p>
         </section>
