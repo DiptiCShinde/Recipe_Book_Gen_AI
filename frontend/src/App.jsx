@@ -20,6 +20,10 @@ function App() {
   const [password, setPassword] = useState('')
   const [loginMessage, setLoginMessage] = useState('')
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [savedRecipes, setSavedRecipes] = useState([])
+  const [isLoadingRecipes, setIsLoadingRecipes] = useState(false)
+  const [showSavedRecipes, setShowSavedRecipes] = useState(false)
+  const [historyMessage, setHistoryMessage] = useState('')
 
   useEffect(() => {
     fetch('http://127.0.0.1:8000/api/health')
@@ -69,6 +73,53 @@ function App() {
     setPassword('')
     setLoginMessage('')
   }
+
+  async function handleShowRecipes() {
+  // If the history is already open, close it.
+  if (showSavedRecipes) {
+    setShowSavedRecipes(false)
+    return
+  }
+
+  setShowSavedRecipes(true)
+  setIsLoadingRecipes(true)
+  setHistoryMessage('')
+
+  try {
+    const response = await fetch(
+      'http://127.0.0.1:8000/api/users/me/recipes',
+      {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      },
+    )
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(
+        typeof data.detail === 'string'
+          ? data.detail
+          : 'Could not load your saved recipes.',
+      )
+    }
+
+    setSavedRecipes(data)
+
+    if (data.length === 0) {
+      setHistoryMessage('You have no saved recipes yet.')
+    }
+  } catch (error) {
+    setHistoryMessage(
+      error instanceof TypeError
+        ? 'Could not connect to the backend. Check that it is running.'
+        : error.message,
+    )
+  } finally {
+    setIsLoadingRecipes(false)
+  }
+}
 
   async function handleExplore() {
     const ingredientList = ingredients
