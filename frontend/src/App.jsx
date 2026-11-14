@@ -10,6 +10,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [dietaryPreference, setDietaryPreference] = useState('')
   const [cuisineStyle, setCuisineStyle] = useState('any')
+  const [maxTimeMinutes, setMaxTimeMinutes] = useState(30)
   const [authToken, setAuthToken] = useState(
     () => sessionStorage.getItem('recipegen_token') || '',
   )
@@ -149,6 +150,7 @@ function App() {
           ingredients: ingredientList,
           dietary_preference: dietaryPreference || 'none',
           cuisine_style: cuisineStyle,
+          max_time_minutes: maxTimeMinutes,
         }),
       })
 
@@ -311,47 +313,70 @@ function App() {
             Tell us what’s in your kitchen, and discover what you can cook.
           </p>
 
-          <label htmlFor="ingredients">What ingredients do you have?</label>
-          <input
-            id="ingredients"
-            name="ingredients"
-            type="text"
-            placeholder="e.g. tomatoes, rice, eggs"
-            value={ingredients}
-            onChange={(event) => setIngredients(event.target.value)}
-          />
+          <div className="recipe-options">
+            <div className="form-field form-field-wide">
+              <label htmlFor="ingredients">What ingredients do you have?</label>
+              <input
+                id="ingredients"
+                name="ingredients"
+                type="text"
+                placeholder="e.g. tomatoes, rice, eggs"
+                value={ingredients}
+                onChange={(event) => setIngredients(event.target.value)}
+              />
+            </div>
 
-          <label htmlFor="dietary-preference">Dietary preference</label>
-          <select
-            id="dietary-preference"
-            value={dietaryPreference}
-            onChange={(event) => setDietaryPreference(event.target.value)}
-          >
-            <option value="">No preference</option>
-            <option value="Vegetarian">Vegetarian</option>
-            <option value="Non-Vegetarian">Non-Vegetarian</option>
-            <option value="Vegan">Vegan</option>
-          </select>
+          <div className="form-field">
+            <label htmlFor="dietary-preference">Dietary preference</label>
+            <select
+              id="dietary-preference"
+              value={dietaryPreference}
+              onChange={(event) => setDietaryPreference(event.target.value)}
+            >
+              <option value="">No preference</option>
+              <option value="Vegetarian">Vegetarian</option>
+              <option value="Non-Vegetarian">Non-Vegetarian</option>
+              <option value="Vegan">Vegan</option>
+            </select>
+          </div>
 
-          <label htmlFor="cuisine-style">Cuisine style</label>
-          <select
-            id="cuisine-style"
-            value={cuisineStyle}
-            onChange={(event) => setCuisineStyle(event.target.value)}
-          >
-            <option value="any">Any style</option>
-            <option value="Indian">Indian</option>
-            <option value="Italian">Italian</option>
-            <option value="Mexican">Mexican</option>
-          </select>
+          <div className="form-field">
+            <label htmlFor="cuisine-style">Cuisine style</label>
+            <select
+              id="cuisine-style"
+              value={cuisineStyle}
+              onChange={(event) => setCuisineStyle(event.target.value)}
+            >
+              <option value="any">Any style</option>
+              <option value="Indian">Indian</option>
+              <option value="Italian">Italian</option>
+              <option value="Mexican">Mexican</option>
+            </select>
+          </div>
 
-          <button
-            type="button"
-            onClick={handleExplore}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Finding a recipe...' : 'Explore recipe ideas'}
-          </button>
+          <div className="form-field">
+            <label htmlFor="max-time">Maximum cooking time</label>
+            <select
+              id="max-time"
+              value={maxTimeMinutes}
+              onChange={(event) => setMaxTimeMinutes(Number(event.target.value))}
+            >
+              <option value={15}>15 minutes</option>
+              <option value={20}>20 minutes</option>
+              <option value={30}>30 minutes</option>
+              <option value={45}>45 minutes</option>
+              <option value={60}>60 minutes</option>
+            </select>
+          </div>
+
+          <div className="form-action">
+            <button type="button" onClick={handleExplore} disabled={isLoading}>
+              {isLoading ? 'Finding a recipe...' : 'Explore recipe ideas'}
+            </button>
+          </div>
+        </div>
+
+          
 
           {message && <p role="status">{message}</p>}
 
@@ -376,6 +401,36 @@ function App() {
                     <strong>Time:</strong> {recipe.prep_time_minutes} minutes
                   </p>
 
+                  {recipe.nutrition?.available ? (
+                    <div className="nutrition-panel">
+                      <p className="nutrition-heading">ESTIMATED NUTRITION · PER SERVING</p>
+
+                      <div className="nutrition-grid">
+                        <div className="nutrition-item">
+                          <strong>{recipe.nutrition.per_serving.calories}</strong>
+                          <span>Calories</span>
+                        </div>
+
+                        <div className="nutrition-item">
+                          <strong>{recipe.nutrition.per_serving.protein_g} g</strong>
+                          <span>Protein</span>
+                        </div>
+
+                        <div className="nutrition-item">
+                          <strong>{recipe.nutrition.per_serving.fat_g} g</strong>
+                          <span>Fat</span>
+                        </div>
+                      </div>
+
+                      <p className="nutrition-source">
+                        Estimates from USDA FoodData Central
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="nutrition-unavailable">
+                      {recipe.nutrition?.message || 'Nutrition estimate is unavailable.'}
+                    </p>
+                  )}
                   <h3>How to make it</h3>
                   <ol>
                     {recipe.instructions.map((step, index) => (

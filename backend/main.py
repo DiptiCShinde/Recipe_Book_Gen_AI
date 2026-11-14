@@ -12,6 +12,7 @@ from pwdlib import PasswordHash
 from database import DATABASE_PATH, initialize_database
 from datetime import datetime, timedelta, timezone
 import jwt
+import requests
 
 bearer_scheme = HTTPBearer()
 load_dotenv(Path(__file__).with_name(".env"))
@@ -24,6 +25,9 @@ groq_client = Groq(api_key=api_key)
 jwt_secret_key = os.getenv("JWT_SECRET_KEY")
 if not jwt_secret_key:
     raise RuntimeError("JWT_SECRET_KEY is missing from backend/.env")
+usda_api_key = os.getenv("USDA_API_KEY")
+if not usda_api_key:
+    raise RuntimeError("USDA_API_KEY is missing from backend/.env")
 password_hasher = PasswordHash.recommended()
 
 initialize_database()
@@ -257,6 +261,118 @@ class RecipeRequest(BaseModel):
     ingredients: list[str]
     dietary_preference: str = "none"
     cuisine_style: str = "any"
+    max_time_minutes: int = Field(default=30, ge=5, le=180)
+
+def get_usda_nutrients_per_100g(food_name: str):
+    """Look up calories, protein, and fat for a food in USDA data."""
+    url = "https://api.nal.usda.gov/fdc/v1/foods/search"
+
+    try:
+        response = requests.get(
+            url,
+            params={
+                "query": food_name,
+                "dataType": ["Foundation", "SR Legacy"],
+                "pageSize": 1,
+                "api_key": usda_api_key,
+            },
+            timeout=15,
+        )
+        response.raise_for_status()
+
+        foods = response.json().get("foods", [])
+        if not foods:
+            return None
+
+        nutrients = foods[0].get("foodNutrients", [])
+        values_by_id = {
+            nutrient.get("nutrientId"): nutrient.get("value")
+            for nutrient in nutrients
+        }
+
+        calories = values_by_id.get(
+            1008,
+            values_by_id.get(2047, values_by_id.get(2048)),
+        )
+        protein = values_by_id.get(1003)
+        fat = values_by_id.get(1004)
+
+        if calories is None or protein is None or fat is None:
+            return None
+
+        return {
+            "calories": float(calories),
+            "protein_g": float(protein),
+            "fat_g": float(fat),
+        }
+
+    except requests.RequestException:
+        # If USDA can't be reached, recipe generation can still work.
+        return None
+
+def calculate_recipe_nutrition(recipe: dict):
+    servings = recipe.get("servings")
+    ingredients = recipe.get("nutrition_ingredients", [])
+
+    if not isinstance(servings, int) or servings < 1:
+        return {
+            "available": False,
+            "message": "The recipe did not provide a valid serving count.",
+        }
+
+    if not ingredients:
+        return {
+            "available": False,
+            "message": "The recipe did not provide ingredient weights.",
+        }
+
+    totals = {
+        "calories": 0.0,
+        "protein_g": 0.0,
+        "fat_g": 0.0,
+    }
+
+    unmatched_ingredients = []
+
+    for ingredient in ingredients:
+        name = ingredient.get("name", "")
+        amount_grams = ingredient.get("amount_grams", 0)
+
+        if not name or not isinstance(amount_grams, (int, float)):
+            unmatched_ingredients.append(name or "an ingredient")
+            continue
+
+        nutrients = get_usda_nutrients_per_100g(name)
+
+        if nutrients is None:
+            unmatched_ingredients.append(name)
+            continue
+
+        # USDA values are per 100 g, so scale them to this recipe's amount.
+        amount_factor = amount_grams / 100
+
+        totals["calories"] += nutrients["calories"] * amount_factor
+        totals["protein_g"] += nutrients["protein_g"] * amount_factor
+        totals["fat_g"] += nutrients["fat_g"] * amount_factor
+
+    if unmatched_ingredients:
+        return {
+            "available": False,
+            "message": (
+                "USDA nutrition data could not be matched for: "
+                + ", ".join(unmatched_ingredients)
+            ),
+        }
+
+    return {
+        "available": True,
+        "source": "USDA FoodData Central",
+        "per_serving": {
+            "calories": round(totals["calories"] / servings),
+            "protein_g": round(totals["protein_g"] / servings, 1),
+            "fat_g": round(totals["fat_g"] / servings, 1),
+        },
+    }
 
 @app.post("/api/recipes")
 def create_recipe(request: RecipeRequest):
@@ -279,15 +395,21 @@ def create_recipe(request: RecipeRequest):
                         f"{', '.join(request.ingredients)}. "
                         f"Dietary preference: {request.dietary_preference}. "
                         f"Cuisine style: {request.cuisine_style}. "
+                        f"Maximum cooking time: {request.max_time_minutes} minutes. "
+                        "Keep the recipe within this time limit. "
                         "If the style is any, choose a style that suits the ingredients. "
                         "Follow this preference: vegetarian means no meat or fish; "
                         "vegan means no animal products; non-vegetarian may include meat or fish. "
                         "If the preference is none, apply no dietary restriction. "
-                        "Return a recipe name, the ingredients, estimated "
-                        "preparation time in minutes, and cooking steps as plain text "
-                        "without numbers at the start of each step." 
-                         "You may add a few complementary ingredients to improve the recipe. "
-                         "List every ingredient used in the ingredients array, and continue to respect the dietary preference. "  ),
+                        "Return a recipe name, ingredients, estimated preparation time in minutes, "
+                        "and cooking steps as plain text without numbers at the start of each step. "
+                        "Return servings as a positive whole number. "
+                        "Also return nutrition_ingredients for every edible ingredient. Each item "
+                        "must have a simple food name suitable for USDA search and an estimated "
+                        "amount_grams for the entire recipe. Use grams for amount_grams. "
+                        "You may add a few complementary ingredients to improve the recipe. "
+                        "List every ingredient used in the ingredients array, and continue to "
+                        "respect the dietary preference. "),
                 },
             ],
             response_format={
@@ -308,12 +430,27 @@ def create_recipe(request: RecipeRequest):
                                 "type": "array",
                                 "items": {"type": "string"},
                             },
+                            "servings": {"type": "integer"},
+                            "nutrition_ingredients": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {"type": "string"},
+                                        "amount_grams": {"type": "number"},
+                                    },
+                                    "required": ["name", "amount_grams"],
+                                    "additionalProperties": False,
+                                },
+                            },
                         },
                         "required": [
                             "name",
                             "ingredients",
                             "prep_time_minutes",
                             "instructions",
+                            "servings",
+                            "nutrition_ingredients",
                         ],
                         "additionalProperties": False,
                     },
@@ -322,7 +459,9 @@ def create_recipe(request: RecipeRequest):
         )
 
         recipe_json = completion.choices[0].message.content
-        return json.loads(recipe_json)
+        recipe_data = json.loads(recipe_json)
+        recipe_data["nutrition"] = calculate_recipe_nutrition(recipe_data)
+        return recipe_data
 
     except Exception as error:
         if getattr(error, "status_code", None) == 429:
