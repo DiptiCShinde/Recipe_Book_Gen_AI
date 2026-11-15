@@ -7,6 +7,7 @@ function App() {
   const [ingredientItems, setIngredientItems] = useState([])
   const [apiMessage, setApiMessage] = useState('Checking backend...')
   const [recipe, setRecipe] = useState(null)
+  const [recipeImage, setRecipeImage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [dietaryPreference, setDietaryPreference] = useState('')
   const [cuisineStyle, setCuisineStyle] = useState('any')
@@ -155,6 +156,24 @@ function App() {
       })
 
       const data = await response.json()
+      setRecipeImage('')
+      try {
+        const mealName = encodeURIComponent(data.name)
+        const imageResponse = await fetch(
+          `https://www.themealdb.com/api/json/v1/1/search.php?s=${mealName}`
+        )
+        const imageData = await imageResponse.json()
+
+        const matchedMeal = imageData.meals?.find(
+          (meal) => meal.strMeal.toLowerCase() === data.name.toLowerCase()
+        )
+
+        setRecipeImage(matchedMeal?.strMealThumb || '')
+      } catch {
+        setRecipeImage('')
+      }
+
+     
 
       if (!response.ok) {
         throw new Error(
@@ -390,6 +409,13 @@ function App() {
 
               {recipe && (
                 <article className="recipe-card">
+                  {recipeImage && (
+                    <img
+                      className="recipe-image"
+                      src={recipeImage}
+                      alt={`Food inspiration for ${recipe.name}`}
+                    />
+                  )}
                   <p className="recipe-card-label">AI GENERATED RECIPE</p>
                   <h2>{recipe.name}</h2>
 

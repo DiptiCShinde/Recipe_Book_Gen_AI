@@ -262,6 +262,7 @@ class RecipeRequest(BaseModel):
     dietary_preference: str = "none"
     cuisine_style: str = "any"
     max_time_minutes: int = Field(default=30, ge=5, le=180)
+    avoid_recipe_name: str | None = None
 
 def get_usda_nutrients_per_100g(food_name: str):
     """Look up calories, protein, and fat for a food in USDA data."""
@@ -395,6 +396,8 @@ def create_recipe(request: RecipeRequest):
                         f"{', '.join(request.ingredients)}. "
                         f"Dietary preference: {request.dietary_preference}. "
                         f"Cuisine style: {request.cuisine_style}. "
+                        f"Recipe to avoid: {request.avoid_recipe_name or 'none'}. "
+                        "Only avoid it when a previous recipe name is provided. "
                         f"Maximum cooking time: {request.max_time_minutes} minutes. "
                         "Keep the recipe within this time limit. "
                         "If the style is any, choose a style that suits the ingredients. "
