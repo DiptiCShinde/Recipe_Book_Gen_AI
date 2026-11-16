@@ -158,18 +158,20 @@ function App() {
       const data = await response.json()
       setRecipeImage('')
       try {
-        const mealName = encodeURIComponent(data.name)
+        const firstIngredient = encodeURIComponent(
+          (data.ingredients[0] || '').toLowerCase().trim().replace(/\s+/g, '_')
+        )
+
         const imageResponse = await fetch(
-          `https://www.themealdb.com/api/json/v1/1/search.php?s=${mealName}`
+          `https://www.themealdb.com/api/json/v1/1/filter.php?i=${firstIngredient}`
         )
         const imageData = await imageResponse.json()
+        const imageUrl = imageData.meals?.[0]?.strMealThumb || ''
 
-        const matchedMeal = imageData.meals?.find(
-          (meal) => meal.strMeal.toLowerCase() === data.name.toLowerCase()
-        )
-
-        setRecipeImage(matchedMeal?.strMealThumb || '')
-      } catch {
+        console.log('Recipe photo URL:', imageUrl)
+        setRecipeImage(imageUrl)
+      } catch (error) {
+        console.error('Recipe photo request failed:', error)
         setRecipeImage('')
       }
 
