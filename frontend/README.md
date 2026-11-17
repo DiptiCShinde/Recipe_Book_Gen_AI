@@ -1,3 +1,4 @@
+
 # RecipeGen AI
 
 RecipeGen AI is an early-stage recipe inspiration project. The current version provides a responsive landing page introducing the idea of turning ingredients you already have into a meal, plus a small backend health check.
