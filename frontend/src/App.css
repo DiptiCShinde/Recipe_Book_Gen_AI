@@ -188,11 +188,3 @@ button:disabled { cursor: wait; opacity: .7; }
   }
 }
 
-.recipe-image {
-  display: block;
-  width: 100%;
-  height: 280px;
-  object-fit: cover;
-  border-radius: 16px;
-  margin-bottom: 24px;
-}
